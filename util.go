@@ -46,7 +46,7 @@ func WriteReader(fs Fs, path string, r io.Reader) (err error) {
 		err = fs.MkdirAll(ospath, 0777) // rwx, rw, r
 		if err != nil {
 			if err != os.ErrExist {
-				log.Fatalln(err)
+				log.Panicln(err)
 			}
 		}
 	}
@@ -295,10 +295,10 @@ func IsEmpty(fs Fs, path string) (bool, error) {
 	}
 	if fi.IsDir() {
 		f, err := fs.Open(path)
-		defer f.Close()
 		if err != nil {
 			return false, err
 		}
+		defer f.Close()
 		list, err := f.Readdir(-1)
 		return len(list) == 0, nil
 	}
