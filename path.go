@@ -24,7 +24,7 @@ import (
 // readDirNames reads the directory named by dirname and returns
 // a sorted list of directory entries.
 // adapted from https://golang.org/src/path/filepath/path.go
-func readDirNames(fs Fs, dirname string) ([]string, error) {
+func ReadDirNames(fs Fs, dirname string) ([]string, error) {
 	f, err := fs.Open(dirname)
 	if err != nil {
 		return nil, err
@@ -53,14 +53,14 @@ func walk(fs Fs, path string, info os.FileInfo, walkFn filepath.WalkFunc) error 
 		return nil
 	}
 
-	names, err := readDirNames(fs, path)
+	names, err := ReadDirNames(fs, path)
 	if err != nil {
 		return walkFn(path, info, err)
 	}
 
 	for _, name := range names {
 		filename := filepath.Join(path, name)
-		fileInfo, err := lstatIfOs(fs, filename)
+		fileInfo, err := lstatIfPossible(fs, filename)
 		if err != nil {
 			if err := walkFn(filename, fileInfo, err); err != nil && err != filepath.SkipDir {
 				return err
@@ -77,15 +77,13 @@ func walk(fs Fs, path string, info os.FileInfo, walkFn filepath.WalkFunc) error 
 	return nil
 }
 
-// if the filesystem is OsFs use Lstat, else use fs.Stat
-func lstatIfOs(fs Fs, path string) (info os.FileInfo, err error) {
-	_, ok := fs.(*OsFs)
-	if ok {
-		info, err = os.Lstat(path)
-	} else {
-		info, err = fs.Stat(path)
+// if the filesystem supports it, use Lstat, else use fs.Stat
+func lstatIfPossible(fs Fs, path string) (os.FileInfo, error) {
+	if lfs, ok := fs.(Lstater); ok {
+		fi, _, err := lfs.LstatIfPossible(path)
+		return fi, err
 	}
-	return
+	return fs.Stat(path)
 }
 
 // Walk walks the file tree rooted at root, calling walkFn for each file or
@@ -100,7 +98,7 @@ func (a Afero) Walk(root string, walkFn filepath.WalkFunc) error {
 }
 
 func Walk(fs Fs, root string, walkFn filepath.WalkFunc) error {
-	info, err := lstatIfOs(fs, root)
+	info, err := lstatIfPossible(fs, root)
 	if err != nil {
 		return walkFn(root, nil, err)
 	}
